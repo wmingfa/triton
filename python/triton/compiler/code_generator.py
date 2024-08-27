@@ -1037,11 +1037,8 @@ class CodeGenerator(ast.NodeVisitor):
         return node.arg, self.visit(node.value)
 
     def visit_Assert(self, node) -> Any:
-        if not self.debug:
-            return
         test = self.visit(node.test)
         msg = self.visit(node.msg) if node.msg is not None else ""
-        # Convert assert to triton's device_assert which happens on the device
         return language.core.device_assert(test, msg, _builder=self.builder)
 
     def call_JitFunction(self, fn: JITFunction, args, kwargs):
@@ -1100,9 +1097,6 @@ class CodeGenerator(ast.NodeVisitor):
 
         kws = dict(self.visit(keyword) for keyword in node.keywords)
         args = [self.visit(arg) for arg in node.args]
-        # TODO: this should not be so hardcoded
-        if fn is language.core.device_assert and not self.debug:
-            return
         if isinstance(fn, JITFunction):
             _check_fn_args(node, fn, args)
             return self.call_JitFunction(fn, args, kws)

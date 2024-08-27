@@ -128,6 +128,26 @@ def binary_op_type_checking_impl(lhs: tl.tensor, rhs: tl.tensor, builder: ir.bui
     return lhs, rhs
 
 
+def binary_op_sanitize_overflow_impl(lhs: tl.tensor, rhs: tl.tensor, builder: ir.builder, binary_op: callable):
+    if lhs.type.scalar.int_bitwidth >= 64 or not builder.options.debug:
+        return
+    lhs_sca_ty = lhs.type.scalar
+    rhs_sca_ty = rhs.type.scalar
+    assert lhs_sca_ty == rhs_sca_ty
+    assert lhs_sca_ty.is_int()
+    lhs = cast(lhs, tl.int64, builder)
+    rhs = cast(rhs, tl.int64, builder)
+    ret = binary_op(lhs, rhs, builder)
+    max_value = lhs_sca_ty.get_int_max_value()
+    max_value = tl.tensor(builder.get_int64(max_value), tl.int64)
+    min_value = lhs_sca_ty.get_int_min_value()
+    min_value = tl.tensor(builder.get_int64(min_value), tl.int64)
+    cond = and_(less_equal(ret, max_value, builder), greater_equal(ret, min_value, builder), builder)
+    cond = splat(cond, [1], builder)
+    msg = "integer overflow detected"
+    builder.create_assert(cond.handle, msg, "unknown", "unknown", 0)
+
+
 def add(input: tl.tensor, other: tl.tensor, builder: ir.builder) -> tl.tensor:
     input, other = binary_op_type_checking_impl(input, other, builder, True, True)
     input_scalar_ty = input.type.scalar
@@ -148,6 +168,7 @@ def add(input: tl.tensor, other: tl.tensor, builder: ir.builder) -> tl.tensor:
         return tl.tensor(builder.create_fadd(input.handle, other.handle), input.type)
     # int + int
     elif input_scalar_ty.is_int():
+        binary_op_sanitize_overflow_impl(input, other, builder, add)
         return tl.tensor(builder.create_add(input.handle, other.handle), input.type)
     raise TypeError(f"unexpected type {input_scalar_ty}")
 
@@ -163,6 +184,8 @@ def sub(input: tl.tensor, other: tl.tensor, builder: ir.builder) -> tl.tensor:
         return tl.tensor(builder.create_fsub(input.handle, other.handle), input.type)
     # int - int
     elif scalar_ty.is_int():
+        if scalar_ty.int_bitwidth < 64 and builder.options.debug:
+            binary_op_sanitize_overflow_impl(input, other, builder, sub)
         return tl.tensor(builder.create_sub(input.handle, other.handle), input.type)
     raise TypeError(f"unexpected type {scalar_ty}")
 
@@ -175,6 +198,8 @@ def mul(input: tl.tensor, other: tl.tensor, builder: ir.builder) -> tl.tensor:
         return tl.tensor(builder.create_fmul(input.handle, other.handle), input.type)
     # * int
     elif scalar_ty.is_int():
+        if scalar_ty.int_bitwidth < 64 and builder.options.debug:
+            binary_op_sanitize_overflow_impl(input, other, builder, mul)
         return tl.tensor(builder.create_mul(input.handle, other.handle), input.type)
     raise TypeError(f"unexpected type {scalar_ty}")
 
@@ -1544,6 +1569,8 @@ def device_print(prefix: str, args: List[tl.tensor], hex: bool, builder: ir.buil
 
 
 def device_assert(cond: tl.tensor, msg: str, file_name: str, func_name, lineno: int, builder: ir.builder) -> tl.tensor:
+    if not builder.options.debug:
+        return
     cond_ty = cond.type
     if not cond_ty.is_block():
         cond_ty = tl.block_type(cond_ty.scalar, (1, ))
