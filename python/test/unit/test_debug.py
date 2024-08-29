@@ -10,22 +10,37 @@ import triton
                               for env_var in [True, False]\
 ])
 @pytest.mark.forked
-def test_assert(cond, opt_flag, env_var, device="cuda"):
+def test_device_assert(cond, opt_flag, env_var, device="cuda"):
     os.environ['TRITON_DEBUG'] = str(int(env_var))
     torch.zeros([1], dtype=torch.int32, device=device)
 
-    @triton.jit(debug=opt_flag)
+    @triton.jit
     def _kernel(COND: tl.constexpr):
         tl.device_assert(COND, 'test')
 
     if not cond and (opt_flag or env_var):
         with pytest.raises(RuntimeError):
-            _kernel[(1, )](cond)
+            _kernel[(1, )](cond, debug=opt_flag)
             torch.cuda.synchronize()
         return
 
-    _kernel[(1, )](cond)
+    _kernel[(1, )](cond, debug=opt_flag)
     torch.cuda.synchronize()
+
+
+@pytest.mark.parametrize("cond", [False, True])
+def test_static_assert(cond):
+
+    @triton.jit
+    def _kernel(COND: tl.constexpr):
+        tl.static_assert(COND)
+
+    if not cond:
+        with pytest.raises(triton.compiler.errors.CompileTimeAssertionFailure):
+            _kernel[(1, )](cond)
+        return
+
+    _kernel[(1, )](cond)
 
 
 def _test_overflow(x, y, x_dtype, y_dtype, debug, should_overflow, tri_func, ref_func):
@@ -40,6 +55,7 @@ def _test_overflow(x, y, x_dtype, y_dtype, debug, should_overflow, tri_func, ref
         assert "device-side assert" in str(exc_info.value)
     else:
         tri_func[(1, )](x, y, z)
+        torch.cuda.synchronize()
         assert int(z) == int(ref_func(x, y))
 
 
