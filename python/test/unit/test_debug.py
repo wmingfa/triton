@@ -50,11 +50,11 @@ def _test_overflow(x, y, x_dtype, y_dtype, debug, should_overflow, tri_func, ref
     z = torch.empty_like(x)
     if should_overflow and debug:
         with pytest.raises(RuntimeError) as exc_info:
-            tri_func[(1, )](x, y, z)
+            tri_func[(1, )](x, y, z, debug=debug)
             torch.cuda.synchronize()
         assert "device-side assert" in str(exc_info.value)
     else:
-        tri_func[(1, )](x, y, z)
+        tri_func[(1, )](x, y, z, debug=debug)
         torch.cuda.synchronize()
         assert int(z) == int(ref_func(x, y))
 
@@ -76,7 +76,7 @@ def _test_overflow(x, y, x_dtype, y_dtype, debug, should_overflow, tri_func, ref
 @pytest.mark.forked
 def test_sanitize_int_add_overflow(x, y, x_dtype, y_dtype, debug, should_overflow):
 
-    @triton.jit(debug=debug)
+    @triton.jit
     def _kernel_add(X, Y, Z):
         tl.store(Z, tl.load(X) + tl.load(Y))
 
@@ -97,7 +97,7 @@ def test_sanitize_int_add_overflow(x, y, x_dtype, y_dtype, debug, should_overflo
 @pytest.mark.forked
 def test_sanitize_int_mul_overflow(x, y, x_dtype, y_dtype, debug, should_overflow):
 
-    @triton.jit(debug=True)
+    @triton.jit
     def _kernel_mul(X, Y, Z):
         tl.store(Z, tl.load(X) * tl.load(Y))
 
@@ -117,7 +117,7 @@ def test_sanitize_int_mul_overflow(x, y, x_dtype, y_dtype, debug, should_overflo
 @pytest.mark.forked
 def test_sanitize_int_sub_overflow(x, y, x_dtype, y_dtype, debug, should_overflow):
 
-    @triton.jit(debug=True)
+    @triton.jit
     def _kernel_sub(X, Y, Z):
         tl.store(Z, tl.load(X) - tl.load(Y))
 

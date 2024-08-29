@@ -184,8 +184,7 @@ def sub(input: tl.tensor, other: tl.tensor, builder: ir.builder) -> tl.tensor:
         return tl.tensor(builder.create_fsub(input.handle, other.handle), input.type)
     # int - int
     elif scalar_ty.is_int():
-        if scalar_ty.int_bitwidth < 64 and builder.options.debug:
-            binary_op_sanitize_overflow_impl(input, other, builder, sub)
+        binary_op_sanitize_overflow_impl(input, other, builder, sub)
         return tl.tensor(builder.create_sub(input.handle, other.handle), input.type)
     raise TypeError(f"unexpected type {scalar_ty}")
 
@@ -198,8 +197,7 @@ def mul(input: tl.tensor, other: tl.tensor, builder: ir.builder) -> tl.tensor:
         return tl.tensor(builder.create_fmul(input.handle, other.handle), input.type)
     # * int
     elif scalar_ty.is_int():
-        if scalar_ty.int_bitwidth < 64 and builder.options.debug:
-            binary_op_sanitize_overflow_impl(input, other, builder, mul)
+        binary_op_sanitize_overflow_impl(input, other, builder, mul)
         return tl.tensor(builder.create_mul(input.handle, other.handle), input.type)
     raise TypeError(f"unexpected type {scalar_ty}")
 
