@@ -385,7 +385,7 @@ jobs:
           pytest --capture=tee-sys -rfs -n 16 language runtime \
                  --ignore=language/test_line_info.py \
                  --ignore=test_debug.py
-          pytest -vs test_debug.py --forked
+          pytest -vs test_debug.py
           TRITON_ALWAYS_COMPILE=1 TRITON_DISABLE_LINE_INFO=0 LLVM_PASS_PLUGIN_PATH=${SHARED_LIB_DIR}/libGPUHello.so \
           pytest --capture=tee-sys -rfs -vvv instrumentation/test_gpuhello.py
 
