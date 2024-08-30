@@ -570,14 +570,8 @@ struct ConvertLayoutOpUsingLinearLayoutsConversion
                                        {kBlock, i32_val(0)}})[0]
                         .second;
     // register idx -> Value
-    llvm::MapVector<int, Value> outVals;
     for (int i = 0; i < iterations; i++) {
-      if (i != 0)
-        barrier();
-
       auto &inRegs = inRegsForIter[i];
-      auto &outRegs = outRegsForIter[i];
-
       for (int j = 0; j < inVals.size() / iterations;
            j += scratchConfig.inVec) {
         auto inRegSlice = inRegs[j];
@@ -589,9 +583,13 @@ struct ConvertLayoutOpUsingLinearLayoutsConversion
         targetInfo.storeDShared(rewriter, loc, vecAddr, std::nullopt, valsVec,
                                 /*pred=*/true_val());
       }
+    }
 
-      barrier();
+    barrier();
 
+    llvm::MapVector<int, Value> outVals;
+    for (int i = 0; i < iterations; i++) {
+      auto &outRegs = outRegsForIter[i];
       for (int j = 0; j < outSize / iterations; j += scratchConfig.outVec) {
         auto outRegSlice = outRegs[j];
         auto vecAddr = getVecAddr(shmemLoadLayout, loadBase, outRegSlice);
